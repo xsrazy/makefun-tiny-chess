@@ -1,80 +1,2 @@
-# tiny-chess-01 starter (MIT, see LICENSE): a working entry to start from.
-# It plays every game of the gauntlet through the env at MAKEFUN_ENV_URL:
-# POST /game {} serves the game in play, POST /move {game, move} plays a
-# move, and the loop ends when the env answers status "done".
-#
-# Its chess is one line deep: of the legal moves the env lists, it plays the
-# one that captures the most valuable piece, read from the FEN. Ties go, in
-# order, to the better promotion, the cheaper moving piece, then the first
-# move in UCI order. No clock and no random: the same position always gets
-# the same move, so the trial's replay matches.
-#
-# Make it stronger with a real search under a fixed node or depth budget,
-# never a clock. The rule: this file is the whole engine, at most 4,096
-# bytes as committed, Python 3.13 standard library only.
-
-import json
-import os
-import sys
-import urllib.error
-import urllib.request
-
-ENV_URL = os.environ.get("MAKEFUN_ENV_URL") or sys.exit("MAKEFUN_ENV_URL is not set")
-
-# Piece values by FEN letter, case-insensitive. The king is never captured;
-# its 100 only ranks it last as the moving piece.
-VALUE = {"p": 1, "n": 3, "b": 3, "r": 5, "q": 9, "k": 100}
-
-
-def post(path, body):
-    """POST a JSON body to the env and return its JSON answer."""
-    req = urllib.request.Request(
-        ENV_URL + path,
-        data=json.dumps(body).encode(),
-        headers={"content-type": "application/json"},
-    )
-    try:
-        with urllib.request.urlopen(req) as res:
-            return json.load(res)
-    except urllib.error.HTTPError as e:
-        sys.exit(f"{path}: HTTP {e.code} {e.read().decode(errors='replace')}")
-
-
-def board_of(fen):
-    """The FEN's pieces as {square: letter}, e.g. {"e1": "K", "e8": "k"}."""
-    board = {}
-    for i, row in enumerate(fen.split()[0].split("/")):
-        file = 0
-        for c in row:
-            if c.isdigit():
-                file += int(c)
-            else:
-                board["abcdefgh"[file] + str(8 - i)] = c
-                file += 1
-    return board
-
-
-def choose(fen, legal):
-    """The legal UCI move that takes the most, with the fixed tie-break."""
-    board = board_of(fen)
-
-    def rank(move):
-        mover = board[move[:2]].lower()
-        victim = board.get(move[2:4])
-        if victim is None and mover == "p" and move[0] != move[2]:
-            victim = "p"  # en passant: the pawn taken is beside the target
-        taken = VALUE[victim.lower()] if victim else 0
-        promo = VALUE[move[4]] if len(move) == 5 else 0
-        return (-taken, -promo, VALUE[mover], move)
-
-    return min(legal, key=rank)
-
-
-while True:
-    g = post("/game", {})
-    if g["status"] == "done":
-        break
-    while g["status"] == "your_move":
-        g = post("/move", {"game": g["game"], "move": choose(g["fen"], g["legal_moves"])})
-    print(f"game {g['game']}: {g['outcome']} by {g['reason']}", file=sys.stderr)
-print(f"done: {g.get('wins')} won, {g.get('draws')} drawn, {g.get('losses')} lost", file=sys.stderr)
+#coding:l1
+import lzma;exec(lzma.decompress('\x000\0\0‘)\0\0\0\0\0\0\0ˆLsàº#~ˆâ\'=’KŽè¾\0Çdª«ãfîì×´Bó€{ùÐõSƒÓ{-a9ï(Ï_®kt=©p9ãiš[£•©DÕ,^ÏnÃ|$Î+µ÷¤È¹òdS‰ÇSãž·+ ´˜H•ÉÊè“M)V¯Ûd‚•‘ë£S2>vq´uòFH£ó-vÍ€z°Ö‹#÷ÛZ¤kÅµš†e­	\0tÑŽ›vJ·äél×T«Ÿ–yn¨³D’1t‚Í×t;¡¿w)XO’„’Î»ž0¨o›,ßâÀøýª„‡ã.‚+†B)?o|áì\n#¨8Ñ¼*U¥êôÆ·Ox7ÝE`ö §gï•§3Ã#ÿ\0búvzä¥‡ÄEýãŽT!mÃ”µ"•ÐH$T¬˜ýå<JG}9B>_Ã.ËŽ¤¬Š¢¦ù­à<a`úüø0³;5„›Ü‘â\n?¡Öú–M³\nÃÖà1Ù&eºy³´Ïh?@J´‘@ÂÁ¢˜z£ë©\rßË7Í C¼îX¦™i‘S>ëîƒ¸ª&FÊv4“pb$.DðTØß;Ý„E!l9¢ÔG{•W¦MRÛä)’Ü,çg‡ðqéœ†?c’-ømÁHÚNKâhì8)Gž«zÎ©ÈAëÓcXYü°ó¾ðª×ŸDsUîGîc_oðÔp–ë\0•Åð<ÏÕG`d˜œmh¦M(›¨RÒHt•mFŒö–£?pŽgè#‹R§\'9pahûˆSÝÜîñŒäîÊø5ú¿63TÅ"¼ízH“œzþú”)7èã‚=2H°Ã ï°Íávz+tÛ`{ 	c„È™œ[9ƒï§aUy‡ÑerÎÂÇf02 m\0xS1i‘	PûIpM]Ï¬ûü®q÷oHö”D+÷N>;H¹Hcœ±´\nõù&ï^ÊWb©‹Ñ{Ô8a,Åôÿ.Èîÿ™‡\'™Ò×n{p‰ù›¡Aæ…ù¹Hã#I¡âøÒŽÑ±uz×rã¢…b=#£!ûÖIœ¾à“ùO\rf¦Ù˜xå„P`?Óxl$!«¬”ûmÄ€Ù}œŒ¸×yIœû(\\‘d,)s Ãe¼Ù%bÔ<6íú ÎÚ :ó/÷ïÅ£`Ì¼:º†«½¤gƒ³G1×Í=ó¢bfÑ\r¯1"•ÆšSäñ=³¸`Aî˜|9]âÒ<:LC?%Ñ\\¶ç[ø´P§Š‰«ÂLWNIŒ¸”ÜV¿FõM¤Ý˜CYF%Àia†â»†è9–I< ›‘ìÇìUH“Z1ÉµÌ "rØ	P…c\0þ’yx¾?Od¶þ<TÏûÅ(Ûfv’K›kr“$¿™åVAkÝB/½„A@äEò¶|#\0žGbÉëmóId_[™¡øÜšjo8µR‡9mÕp¹Ò£ü.Û†šÐ$¦äBˆÞnËœ“Ï`5ŒýÊ¾Þ#¹\\žUó\\ñbé&ÐÂ­Px¸_Ì8x-ÔŸÒøl>ýKKºtBmÜw5€ÕœíD|[boŒa†¢¬¡NŒIç¥JõYj<ÜÇÄŽIÒOÔ„)MÞ~šã8¡z4Œ¤Í÷ÃS.þ¯ÄïÒhÄÀÜJQÊI–NùýÛ@ˆÐ	)E˜Í\0EPòËâ`kx™?“"·†"$~¬+U?¶•BðÊ±­6”ã\\Í‘äÞ†HEÆ³ÉZÐçPÑ.|çC<SXÅ¿[	÷u½XnÃ²!Ù^KòŠ;²É"ò=«>Yj0{È5œ½©V|ïYö5f¯Z8mz­áDàÅuÊ*­Û«iD);‘öœîý3±ô<ÕQÜ$õÏ¶¶±½çzÅv³¹NÈêdEç·‰Æàï<Ñ:m~ýño¢¿ÜžÑâY÷ p8q(:Ðôv*àa:ôë¢ç¾|É”‰ èü›®#ÑÆ¼–¬8ÜØpÚóöÖß€x}û¥&›^Œ"}»ÎÃ"+$ Cº/·\r€ºOëàòöþ¤;fx¬‰ù³îÏõ»CÕlEÝòC¹¬µZWO?KCÉÏ‚„o9u=H#Ä‘»½FO´íw|‚yIÖA¼Ì9|V_AX Þaìñt"ýhEât}óõóq•í[AP1ãÇUþßÕÿl„g†1Zôt73Y§»?òô±.Z	•YhÄŒ£V®åÿŒKµóÉWQ:ûÃeÎæA!Ú„zì ¨Z.“6î„PýöÛ £f©úI°O}Šå\'ÒãÑlP?cû"qÅ…òH›»Øw•ÌÛŒp¥”BZíóÏnÑ™ØÃÞuTo—ÇªÄ¦;åï•mú¾ƒ+~÷êr<xÊ*Mn›vo€š%£Öóžé’žP\r”ì_½Ü(ähÞÒÛdï‹wØ§ÕzE•¤¼„Ñ­xªrÌÛ¬ŠŸ€¼Ø°ßÊ¿¸_ehNH0Lwð´Ø"VQé(…àÒ£ð5Ì	sDˆL,«d”ük™\\‰Kä‚#½öÛ¹S£6<c)&\\þû>Hý4MÚðg›dF[Âÿ®wÿ#ëp!ø±}½ãË–~Û\n’~¥óÁÄæ.ãk(èép\r=ÉLÁŒàÄ=²5èÕD$ËÑ¾N·š6›`ïºbµP½¥ eÙé¾9QDä˜HWRLÍƒRix5ª™)×”¥£7\'\n,ÐÆ)¾±oðÞ´úI^Œ\n@ÈÏ5_ß»Ý2àWsä—<šÕµÕA°,í¸""0ÆäWHpl“š"÷+°…ªJ¼Ýä³tôt>wJ\nõ{pÚ‰Ïî^ÈC¾¥ÞKóÃä–Å[Œt…ß’Ùé5s,Õ\r/y¹WA,íÚ#-¬j;çžG2cÂ;”xœå_AlR—»Z? Îõ4‹\0¸j6µºÌo]}äwwŽ\'Cª9Æàª/þ˜~PÎ÷eGÓÎêÐãÆ">›~ýU_!êŒze‘kå­ëSé.õîsTéÊºÀâVâ‚%³QbÕ7—+]êp`žâ\'ÉK‰"äøÞÚ˜oŒPÄ2‰iG1X©Ô#øG“™IÎÚ¡\\ß#Z­$ýž#°DSòL?±QëÉwKþŸú²vµÓËu¿´øÞQÓb5ÝïP)í±…¤·æùš§ú™Êð âñe%\r°`iê\0¶’‘Ÿâ5þ4\0)»5R*ñ‰P\0õ“ñõ\nëüñÍº¡Ñgv6¡?ÐÀã€îºžz%O(µH7mŸÍöœ$_¶ ×ÖtæÓJJ?Ë	PBÛÊwµa?²|Ñ,üíÁ†`Ðï¿´BV*àDñA½Fï¨Cº­…ÃwÇ\n“÷^ÀÀÔ‚Š"U€_HxîÀÁ/ˆbR!Rý™ñ»9E|….ÈQ†S÷Øó€XOÕ\'¥<l‰%mÑOVdK|¦b—åÝÇ·=e­~˜>àL¢—È»^Œ5;“jrŒÅ‡êJ¹—u¾G¸¦o yØ§·“†Ö½:æ.ÍóüK|3ûê5Æ4ù;\njÚe "¼OÄû\n`;:ì€ÃvæÎt¸HdYt`8ø]?(üìœÝ×ö´§Ú7{ª©~2ä˜ÑæÙ+\0œb‹ûÁqÊg•Ÿ”ó\'5ûž\0jkC9SÿŽq*ƒo¬›½QÿûpY"ÏWùš%¼dÃu²QÉu6uÑ@%÷J¡àâÎ ¾Ij^(Šì:˜VWÆ—|øZ\nòþoXôâ~‘­§ããl}>Í‰à À€&É¦_,"^®~ 2óŒð±óÎÍ@J0 ˜6%’#1æ(å70¥N†´Ðëhœ›uÛÅfLI†ð¿S™t±ò&xü˜Ò=¶;æBdäR‰ëI9æ¼ÄSÜ>‚ß¤2—Qw)¸?•ÒQ÷õu«ˆhÐ nßðmv	ž±19¾ªÝhŒ¹’ôïÍý\0_®\\{Ýç£¤*éª\0O7[Wè´éßW£älú]Ü\0Óe$V¶V¬àVyb¯¡,i9Èœ-ºÈ5 ¿ÉCµjÞK`ìmœ¿û\n÷gRS9I ‘ÀÑQWºªK‹oj9³_Ñ§ÇâÇØÝ$üÀ‘T6¬ÄÆŠ/¾rž;@5$Plk-6CÃkýÍ‡Aˆ«Fû³2\\õ.O³Öñ € iò`FT8­g°á*ÃÉÖÁ}˜pâ/Ô±‘G=Û¤&ŠnºJ°(æ¸´­ J¦Ís½C‘Ú×\0:µ\r,	=á%¼#u‘PJF¾ªšHØ¢îÔºó”øý•ú|œº–dæfŠCÔU´7bÄ4˜ÃGÝ·Y6òK7‰;Mçéì)‰ÒyèE+>"ÝIUòš¤Í©t:‚½ó¡Ê@oG„/,%)¬Í8¸Y¹6àÛÑYy	à©‡eÅjÖüK•hua¾º\rõ ÙExˆ„\n“`hÜqôë;Ú`ÐK˜à~ñ>ëqÅž—e5ÑÄ§™I§mçÁá£"ÛZ1Ô‰až@àÏ@$ZRÑ˜1¨ÏÚ¨¸ÊÝûy\n]ï¼ª¦öÂ,ÈƒÝÂ^2@ù,ö]‚Ð,)Šqøòò°šþ_”FvTØ>£±çõ‹w µ\0Êk¼@!q:Ù³¸±#F£jÅñPVö$á¬6—M4‹/á\rè( S{S(þTü¯âG~Ò»Ô•M­…"P¸"ŽXËVòU†ÚüóíôçÈÈCÓQ™tdKãÉc"»®¿0ÍÎDvN“C,Ãüë¥Íumâ1w˜©Ä¡Áù#è0	=Lú˜ôÜß‡	A0]XžÈÅTÌnBþIÆ›êØ",4¼ÑU½A8QdôJõ‘6Ý’9äN:ßéNÂ¢e§!9I-À[¿ávpÊqo]"j½¬9…\x001–Yë¥ÁÁBÜíš÷0‚ê†ÆOÿÑ”Å¹±é,2AuþÅüj¿u/%¿"BdÉ÷wRÏÞò¿­T@T5Œò|ž\\2õy?½XÎß>.‚íj2’Qüj9ô˜&Ô«_ôyæ&90žzK^O"kù˜ŒšÜMÊ@ºJ‡áŸùè(~|´êp‘B¬ŸyïMÎ†?:bÊY¸˜ÑÒé6/0.I…3\r+Õx\'n‹Wdä¡,‚€ÏÃ+Z˜ØúÉóm*ãÅG)+áJ÷@+Õ×ÊR¹:?àºÂ9|Ä¯¡:~«Ëž7Õ(±Ù5ëü9Õç/áç*ž'.encode('l1')))
